@@ -1,5 +1,5 @@
 ---
-title: "Termux環境でUSBデバイスをシリアルポートとしてつかってみよう"
+title: "Termux環境でUSBポートをシリアルポートとしてつかってみよう"
 emoji: "📱"
 type: "tech"
 topics: [
