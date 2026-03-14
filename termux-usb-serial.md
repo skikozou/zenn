@@ -1,19 +1,19 @@
-# Termux環境でUSBデバイスをシリアルポートとして使用する
+# Termux環境でUSBデバイスをシリアルポートとしてつかってみよう
 
 ## 概要
 
-Android（非root）環境のTermuxからUSBシリアルデバイスを操作する手順を説明する。
+Android（非root）環境のTermuxからUSBシリアルデバイスを操作する手順を説明します。
 
 Termuxでは `/dev/tty*` デバイスへ直接アクセスできないため、`termux-usb`
 コマンドで Android の USB permission を取得し、その file descriptor を `libusb`
-に渡して使用する。
+に渡して使用します。
 
 本手順では、USBシリアル通信を **PTY（pseudo terminal）**
 にブリッジすることで、アプリケーション側から `/dev/pts/*`
-を通常のシリアルポートとして扱えるようにする。
+を通常のシリアルポートとして扱えるようにします。
 
 本手順は **iRobot Roomba 980**（VID `27a6:0002`、USB CDC ACM
-デバイス）で検証している。
+デバイス）で検証しています。
 
 ---
 
@@ -27,21 +27,31 @@ Termuxでは `/dev/tty*` デバイスへ直接アクセスできないため、`
 ## ptyserialを使用した理由
 
 Termuxでは Android の権限制約により、USBシリアルデバイスを `/dev/tty*`
-として直接扱うことができない。そのため、`termux-usb` を用いて USB デバイスの
-file descriptor を取得し、`libusb` 経由で通信する必要がある。
+として直接扱うことができません。そのため、`termux-usb` を用いて USB デバイスの
+file descriptor を取得し、`libusb` 経由で通信する必要があります。
 
 既存ツールの中で、USBシリアル通信を **PTY（pseudo terminal）**
 にブリッジし、アプリケーションから通常のシリアルポートとして扱えるようにするツールとして
-`ptyserial` が存在する。この方法を利用すると、アプリケーション側の実装を変更せず
-`/dev/pts/*` をシリアルポートとして利用できる。
+`ptyserial`
+が存在します。この方法を利用すると、アプリケーション側の実装を変更せず
+`/dev/pts/*` をシリアルポートとして利用できます。
 
-そのため、まず `ptyserial` を用いて接続を試みたが、`ptyserial` を含む
+そのため、まず `ptyserial` を用いて接続を試みましたが、`ptyserial` を含む
 Termux-serial-tty は FTDI / CH34x / PL2303 ドライバのみをサポートしており、CDC
-ACM デバイスには対応していなかった。
+ACM デバイスには対応していませんでした。
 
 本手順では、対象デバイス（iRobot Roomba 980）が CDC ACM
 デバイスであるため、`ptyserial` に CDC ACM
-ドライバを追加する形で拡張し、動作するようにしている。
+ドライバを追加する形で拡張し、動作するようにしています。
+
+---
+
+## 0. はじめに
+
+本手順で説明する改造をすべて施したリポジトリは以下にあります。
+クローンするだけで使用できます。
+
+https://github.com/skikozou/Termux-serial-tty
 
 ---
 
@@ -55,7 +65,7 @@ pkg install clang libusb pkg-config make git
 
 ## 2. ptyserialのビルド
 
-USBの file descriptor を PTY（疑似端末）へブリッジするツールをビルドする。
+USBの file descriptor を PTY（疑似端末）へブリッジするツールをビルドします。
 
 ```bash
 mkdir -p ~/git && cd ~/git
@@ -65,13 +75,13 @@ cd Termux-serial-tty
 
 ### Makefileに `cdc_acm.o` を追加
 
-`Makefile` の `OBJS` 定義内で `pl2303.o` の直後に次の行を追加する。
+`Makefile` の `OBJS` 定義内で `pl2303.o` の直後に次の行を追加します。
 
 ```makefile
 cdc_acm.o                                                                   \
 ```
 
-`ptyserial` ターゲットのリンク時に `-L./bin` を追加する。
+`ptyserial` ターゲットのリンク時に `-L./bin` を追加します。
 
 ```makefile
 ptyserial: examples/ptyserial.o
@@ -83,18 +93,18 @@ ptyserial: examples/ptyserial.o
 ### CDCドライバの追加
 
 `MarkWllms/Termux-serial-tty` は **FTDI / CH34x / PL2303**
-のみをサポートしており、 CDC ACM デバイスには対応していない。
+のみをサポートしており、CDC ACM デバイスには対応していません。
 
-`src/cdc_acm.cpp` を追加することで CDC ACM デバイスに対応できる。
+`src/cdc_acm.cpp` を追加することで CDC ACM デバイスに対応できます。
 
-→ 後述の `src/cdc_acm.cpp` を参照。
+→ 後述の `src/cdc_acm.cpp` を参照してください。
 
 ---
 
 ### ptyserial.cppの修正
 
 PTY作成後に slave 側を明示的に `open` しない場合、Bulk IN コールバック時に `EIO`
-が発生する。
+が発生します。
 
 `examples/ptyserial.cpp` の
 
@@ -102,7 +112,7 @@ PTY作成後に slave 側を明示的に `open` しない場合、Bulk IN コー
 fprintf(stderr, "PTY created: %s\n", ptyname);
 ```
 
-の直後に次を追加する。
+の直後に次を追加します。
 
 ```cpp
 // slaveを自分で開いてPTYを安定させる
@@ -114,8 +124,8 @@ if (slave_fd < 0) {
 }
 ```
 
-`ctx.attach(...)` の `close(slave_fd)` は、ループ終了後（`kill(pid, SIGTERM)`
-の直前）に移動する。
+`close(slave_fd)` は、メインループ終了後（`kill(pid, SIGTERM)`
+の直前）に移動します。 早期にcloseするとEIOが再発するため注意してください。
 
 ---
 
@@ -126,7 +136,7 @@ make
 make ptyserial
 ```
 
-`make ptyserial` が `-lusbuart` を見つけられない場合は手動でリンクする。
+`make ptyserial` が `-lusbuart` を見つけられない場合は手動でリンクします。
 
 ```bash
 clang++ -c examples/ptyserial.cpp -o examples/ptyserial.o \
@@ -140,7 +150,7 @@ clang++ -o ptyserial examples/ptyserial.o \
 
 ## 3. デバイスのパーミッション取得
 
-USBデバイスの一覧を確認する。
+USBデバイスの一覧を確認します。
 
 ```bash
 termux-usb -l
@@ -152,19 +162,20 @@ termux-usb -l
 ["/dev/bus/usb/001/003"]
 ```
 
-対象デバイスに対して permission を要求する。
+対象デバイスのパスを変数に入れ、permission を要求します。
 
 ```bash
-termux-usb -r /dev/bus/usb/001/003
+USB_DEV=$(termux-usb -l | tr -d '[]" \n' | tr ',' '\n' | grep -v '^$' | head -1)
+termux-usb -r "$USB_DEV"
 ```
 
-Androidのダイアログで **許可** を選択する。
+Androidのダイアログで **許可** を選択します。
 
 ---
 
 ## 4. エンドポイントの確認（必要な場合）
 
-デバイスの Bulk エンドポイントを調べるツール。
+デバイスの Bulk エンドポイントを調べるツールです。
 
 ```c
 // list_ep.c
@@ -206,19 +217,19 @@ int main(int argc, char** argv) {
 }
 ```
 
-コンパイル
+コンパイルします。
 
 ```bash
 clang list_ep.c -o list_ep $(pkg-config --cflags --libs libusb-1.0)
 ```
 
-実行
+実行します。
 
 ```bash
-termux-usb -e "./list_ep" /dev/bus/usb/001/003
+termux-usb -e "./list_ep" "$USB_DEV"
 ```
 
-Roomba 980 の場合の例。
+Roomba 980 の場合の例です。
 
 ```
 ifc=0 class=0x02 ep_count=1
@@ -234,30 +245,30 @@ ifc=1 class=0x0a ep_count=2
 ## 5. ptyserialの起動
 
 ```bash
-TTYDIR=~/git/Termux-serial-tty
+TTYDIR="$(pwd)"
+USB_DEV=$(termux-usb -l | tr -d '[]" \n' | tr ',' '\n' | grep -v '^$' | head -1)
 
-termux-usb -e "env LD_LIBRARY_PATH=$TTYDIR/bin $TTYDIR/ptyserial 115200" \
-  /dev/bus/usb/001/003
+termux-usb -e "env LD_LIBRARY_PATH=$TTYDIR/bin $TTYDIR/ptyserial 115200" "$USB_DEV"
 ```
 
-実行に成功すると次のような出力が表示される。
+成功すると次のような出力が表示されます。
 
 ```
 PTY created: /dev/pts/4
 ```
 
-この PTY パスを通常のシリアルポートとして使用できる。
+この PTY パスを通常のシリアルポートとして使用できます。
 
 ---
 
-## 6. 起動スクリプト
+## 6. 起動スクリプト（参考）
 
-上記手順を簡略化するため、以下のスクリプトで自動化できる。
+上記手順を自動化するスクリプトの例です。アプリのパスは環境に合わせて変更してください。
 
 ```bash
 #!/bin/bash
-TTYDIR="/data/data/com.termux/files/home/git/Termux-serial-tty"
-USB_DEV=$(termux-usb -l | tr -d '[]" \n' | tr ',' '\n' | head -1)
+TTYDIR="$(cd "$(dirname "$0")" && pwd)"
+USB_DEV=$(termux-usb -l | tr -d '[]" \n' | tr ',' '\n' | grep -v '^$' | head -1)
 
 if [ -z "$USB_DEV" ]; then
     echo "USB device not found"
@@ -266,10 +277,21 @@ fi
 
 echo "USB device: $USB_DEV"
 
+# パーミッション取得
+echo "Requesting USB permission..."
+termux-usb -r "$USB_DEV"
+sleep 1
+
+# 前回のptyserialプロセスが残っている場合は終了させる
+pkill -f ptyserial 2>/dev/null
+sleep 0.5
+
+# ptyserialをバックグラウンドで起動
 termux-usb -e "env LD_LIBRARY_PATH=$TTYDIR/bin $TTYDIR/ptyserial 115200" "$USB_DEV" \
     2>/tmp/ptyserial.log &
 PTYSERIAL_PID=$!
 
+# PTYパスが出るまで待つ
 PTY=""
 for i in $(seq 1 10); do
     PTY=$(grep "PTY created" /tmp/ptyserial.log | awk '{print $3}')
@@ -285,8 +307,10 @@ fi
 
 echo "PTY: $PTY"
 
-ROOMBA_PTY="$PTY" ~/g/roomba/roomba
+# アプリにPTYパスを渡して起動（パスは環境に合わせて変更してください）
+"$YOUR_APP" "$PTY"
 
+# 終了時にptyserialも止める
 kill $PTYSERIAL_PID
 ```
 
@@ -294,10 +318,11 @@ kill $PTYSERIAL_PID
 
 ## トラブルシューティング
 
-| 症状                    | 原因                                      | 対処                                               |
-| ----------------------- | ----------------------------------------- | -------------------------------------------------- |
-| `termux-usb -l` が空    | デバイス未認識 / Termux:API未インストール | F-Droid版Termux:APIをインストール                  |
-| `error 6 (BUSY)`        | カーネルドライバがインターフェースを占有  | CDCドライバで `libusb_detach_kernel_driver` を呼ぶ |
-| `I/O error 5 (EIO)`     | PTYのslave側が開かれていない              | `ptyserial.cpp` でslave_fdを開いたままにする       |
-| `Status=6` がループする | slave_fdを早期にcloseしている             | ループ終了後にcloseする                            |
-| `-lusbuart not found`   | `-L./bin` が不足                          | リンクコマンドに `-L./bin` を追加                  |
+| 症状                      | 原因                                      | 対処                                               |
+| ------------------------- | ----------------------------------------- | -------------------------------------------------- |
+| `termux-usb -l` が空      | デバイス未認識 / Termux:API未インストール | F-Droid版Termux:APIをインストールしてください      |
+| `error 6 (BUSY)`          | カーネルドライバがインターフェースを占有  | CDCドライバで `libusb_detach_kernel_driver` を呼ぶ |
+| `i/o error 5 (EIO)`       | PTYのslave側が開かれていない              | `ptyserial.cpp` でslave_fdを開いたままにする       |
+| `Status=6` がループする   | slave_fdを早期にcloseしている             | ループ終了後にcloseする                            |
+| `-lusbuart not found`     | `-L./bin` が不足                          | リンクコマンドに `-L./bin` を追加する              |
+| 2回目以降の起動が失敗する | 前回のptyserialプロセスが残っている       | `pkill -f ptyserial` で終了させてから再起動する    |
