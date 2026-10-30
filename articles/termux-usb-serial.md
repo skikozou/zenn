@@ -2,12 +2,11 @@
 title: "Termux環境でUSBポートをシリアルポートとしてつかってみよう"
 emoji: "📱"
 type: "tech"
-topics: [
-    "termux",
-    "usb",
-    "serialport",
-    "android",
-]
+topics:
+  - termux
+  - usb
+  - serialport
+  - android
 published: false
 ---
 
